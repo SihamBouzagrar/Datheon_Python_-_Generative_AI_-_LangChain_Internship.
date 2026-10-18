@@ -1,0 +1,20 @@
+# Environnement virtuel
+venv/
+.venv/
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Sorties générées
+*.json
+!tests/*.json
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
