@@ -87,7 +87,7 @@ Subtotal 610.00 EUR  | VAT 25% 152.50 EUR | TOTAL DUE 762.50 EUR
 ```
 **Terminal demo**
 
-![demo](docs/demon.png)
+![demo](docs/demo.png)
 ## How it works
 ```
 raw text → prompt template (rules + schema + few-shot) → LLM → clean_json → json.loads
