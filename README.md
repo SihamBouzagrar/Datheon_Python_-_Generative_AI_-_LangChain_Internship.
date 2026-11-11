@@ -6,8 +6,8 @@ Hands-on projects built during the Datheon *Python + Generative AI & LangChain* 
 |---|---|---|
 | 1 | [Structured LLM Prompt Pipeline & JSON Extractor](#task-1--structured-llm-prompt-pipeline--json-extractor) | Done |
 | 2 | [Document Q&A Assistant with RAG](#task-2--document-qa-assistant-with-rag--vector-embeddings) | Done |
-| 3 | Multi-tool agent | Planned |
-| 4 | Streamlit chatbot | Planned |
+| 3 | [Multi-Tool Autonomous AI Agent](#task-3--multi-tool-autonomous-ai-agent) | Done |
+| 4 | [Interactive Streamlit Chatbot](#task-4--interactive-streamlit-chatbot) | Done |
 
 ## Project structure
 ```
@@ -18,13 +18,18 @@ Hands-on projects built during the Datheon *Python + Generative AI & LangChain* 
 │   ├── ingest.py            # phase 1: load, chunk, embed, store
 │   ├── ask.py               # phase 2: retrieve, answer, cite pages
 │   └── chroma_db/           # vector store (generated, not committed)
+├── agent_assistant/         # Task 3
+│   ├── agent.py             # agent loop: thought -> action -> observation -> answer
+│   ├── tools.py             # web_search, calculator, read_local_file
+│   └── workspace/           # files the agent is allowed to read (demo: budget.txt)
+├── streamlit_app.py         # Task 4: web UI around the Task 3 agent
 ├── tests/                   # pytest tests (no real API calls)
 ├── docs/screenshots/        # demo screenshots
 ├── requirements.txt
 └── .env.example
 ```
 
-## Installation (both tasks)
+## Installation (all tasks)
 ```bash
 python -m venv venv
 venv\Scripts\activate          # Windows  (Mac/Linux: source venv/bin/activate)
@@ -34,6 +39,10 @@ Copy `.env.example` to `.env` and add your API key(s):
 ```
 GEMINI_API_KEY=your_key
 ```
+
+> **Free-tier note:** the Gemini free tier allows about 5 requests per minute per model.
+> Tasks 3 and 4 make one request per agent step, so long reasoning chains may pause briefly
+> while the app waits for the quota to reset.
 
 ---
 
@@ -173,20 +182,16 @@ question → embedding → top-k similar chunks → numbered context + strict pr
 
 **1. Indexing** (4 PDFs, 116 pages, 273 chunks)
 
-![Indexing](docs/screenshots/rag_01_ingest.png)
-![Indexing](docs/screenshots/rag_02_ingest.png)
-
-**2. Answer with source page**
-
-![Answer with source](docs/screenshots/rag_02_answer_with_source.png)
+![Indexing](docs/rag_01_ingest.png)
+![Indexing](docs/rag_02_ingest.png)
 
 **3. Only the page actually used is cited** (not all 4 retrieved chunks)
 
-![Single source](docs/screenshots/rag_03_devops_single_source.png)
+![Single source](docs/rag_03_devops_single_source.png)
 
 **4. Refusal when the information is absent** (no source displayed)
 
-![Refusal](docs/screenshots/rag_04_refusal.png)
+![Refusal](docs/rag_04_refusal.png)
 
 
 ## Design choices
@@ -204,6 +209,140 @@ question → embedding → top-k similar chunks → numbered context + strict pr
 
 ---
 
+# Task 3 · Multi-Tool Autonomous AI Agent
+
+A console agent that **decides by itself which tool to use**, chains several tools for compound questions,
+and prints its full reasoning chain: **thought → action → observation → final answer**.
+
+## Features
+- **Three tools** bound to Gemini through native function calling (LangChain `@tool`):
+
+| Tool | Purpose |
+|---|---|
+| `web_search` | DuckDuckGo search, with a `recent` option (last year only), automatic retries and today's date stamped on the results |
+| `calculator` | Safe math evaluator (AST-based: no `eval`), supports `+ - * / ** % //`, `sqrt`, `log`, `sin`, `min`, `max`, `pi`... |
+| `read_local_file` | Reads `.txt .md .csv .json .py .pdf` from the `workspace/` folder only, or lists the available files with `.` |
+
+- **Visible reasoning chain** printed at each step
+- **Multi-step planning**: compound questions are split into steps (read file → calculate → search → calculate)
+- **Model fallback chain** (`gemini-3.5-flash` → `3.6` → `3.7`) if a model is overloaded (503/504)
+- **Answers in the user's language**
+- **Step limit** (`MAX_STEPS = 8`) to prevent infinite loops
+
+## Usage
+Run from the project root:
+```bash
+# One-shot mode
+python -m agent_assistant.agent -q "Read budget.txt and tell me the total after adding 20% tax"
+
+# Interactive mode
+python -m agent_assistant.agent
+
+# Self-test of the tools (calculator, file security, search)
+python -m agent_assistant.tools
+```
+
+## Example
+```
+AGENT STEP 1
+THOUGHT:  I am going to read the contents of `budget.txt`...
+ACTION:   read_local_file   {'path': 'budget.txt'}
+OBSERVATION: Budget projet 2026 Serveurs cloud : 4500 MAD par mois ...
+
+AGENT STEP 2
+THOUGHT:  I will use the calculator to compute the subtotal...
+ACTION:   calculator   {'expression': '4500 * 12 + 12000 + 8000'}
+OBSERVATION: 74000
+
+AGENT STEP 3
+ACTION:   calculator   {'expression': '74000 * 1.20'}
+OBSERVATION: 88800.0
+
+FINAL ANSWER: The total with 20% tax is 88,800 MAD.
+```
+
+## How it works
+```
+question → Gemini (tools bound)
+        → tool_calls? ── no ──→ final answer
+              │ yes
+              ▼
+        run tool(s) → ToolMessage (observation) → back to Gemini → next step (max 8)
+```
+
+## Design choices
+- **Safe calculator**: the expression is parsed into an AST and only whitelisted operators and functions are allowed; exponents and result sizes are capped. `__import__('os')...` is rejected.
+- **Sandboxed file reader**: paths are resolved and must stay inside `workspace/` (blocks `../` tricks and symlinks), with an extension whitelist and a size limit.
+- **Freshness-aware search**: DuckDuckGo results can be old, so the tool can filter to the last year, stamps today's date on results, and the system prompt asks for the year in the query and the source dates in the answer.
+- **Visible reasoning by prompt design**: the model must explain each action in one sentence before calling a tool.
+- **Resilience**: retries on search errors and a fallback chain of models.
+
+## Known limitations
+- The Gemini free tier (about 5 requests/minute per model) can pause or stop long reasoning chains.
+- DuckDuckGo snippets can be outdated or incomplete; the agent may need a second search to confirm recent facts.
+- The console mode has no memory between questions (the Streamlit app in Task 4 does).
+- Tools are checked with the manual self-test (`python -m agent_assistant.tools`); there are no pytest tests for Task 3 yet.
+
+---
+
+# Task 4 · Interactive Streamlit Chatbot
+
+A browser chat application that wraps the Task 3 agent, with **token-by-token streaming**,
+**conversation memory** and **clean session management**.
+
+## Features
+- Chat interface built with `st.chat_message` and `st.chat_input`
+- **Real-time streaming**: the answer appears word by word
+- **Conversation memory** in `st.session_state`: follow-up questions work ("now with 10% tax?")
+- **Reasoning chain per answer** in a collapsible block (thought, action, observation), kept when the page refreshes
+- **New conversation** button that fully resets the history and the agent's memory
+- **Quota-aware**: on a Gemini 429 error the app waits for the delay Google suggests and retries, with a message in the UI
+- **Error-safe**: a failed turn is rolled back so the memory is never left in an invalid state
+
+## Usage
+Run from the project root (the folder containing `agent_assistant/`):
+```bash
+streamlit run streamlit_app.py
+```
+The app opens at `http://localhost:8501`.
+
+**Screenshots**
+
+![Streamlit chat](docs/app.png)
+![Streamlit tools](docs/tools.png)
+![Streamlit reasoning](docs/Reasoning.png)
+![Streamlit reponse](docs/response.png)
+
+## How it works
+```
+st.chat_input → add HumanMessage to st.session_state.messages
+   loop (max 8 steps):
+      agent.stream(messages) → chunks → live display (streaming)
+      tool calls?  yes → run tools → ToolMessage → next step   (text shown as "thought")
+                   no  → streamed text is the final answer
+→ save the answer and its reasoning steps in st.session_state.chat
+```
+
+Two lists live in the session state:
+
+| Key | Content |
+|---|---|
+| `messages` | Full LangChain history sent to the model (the memory) |
+| `chat` | What the UI displays: text plus the reasoning steps of each answer |
+
+## Design choices
+- **Streaming with tool calls**: each step is streamed and merged chunk by chunk; if it ends with tool calls, the text is shown as the agent's thought, otherwise it is the final answer.
+- **No stripping of chunks**: spaces at chunk boundaries are kept so words are not glued together.
+- **Cached agent** (`st.cache_resource`): the model clients are created once, not on every rerun.
+- **Rollback on failure**: messages added during a failed turn are removed.
+
+## Known limitations
+- Memory lives in the browser session: it is lost on page reload or when the server stops (no database).
+- Very long conversations grow the context sent to the model on every step.
+- The same free-tier rate limits as Task 3 apply.
+
+---
+
 ## Tests
 ```bash
 python -m pytest
@@ -211,8 +350,10 @@ python -m pytest
 Tests use no real API calls: Task 1 uses a fake LLM client (validators, JSON cleaning, retry loop);
 Task 2 tests the pure functions (source formatting, citation parsing, text extraction).
 
-## Next steps (program roadmap)
-Task 3: multi-tool agent · Task 4: Streamlit chatbot.
+## Next steps
+- Plug the RAG pipeline (Task 2) into the agent as a fourth tool, so the chatbot can answer from the indexed PDFs.
+- Add pytest tests for the Task 3 tools (calculator and file-reader security).
+- Persist chat history between sessions.
 
 ## Author
 

@@ -1,21 +1,33 @@
-# Environnement virtuel
-venv/
-.venv/
-
-# Secrets
+# ---------- Secrets (never commit) ----------
 .env
+.streamlit/secrets.toml
+
+# ---------- Virtual environments ----------
+.venv/
+venv/
+env/
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---------- Task 2: RAG (generated / source data) ----------
 rag_assistant/chroma_db/
 rag_assistant/data/*.pdf
-# Python
-__pycache__/
-*.pyc
-.pytest_cache/
 
-# Sorties générées
-*.json
-!tests/*.json
+# ---------- Task 3: agent workspace ----------
+# Only the demo file is committed; anything else you drop in stays local.
+agent_assistant/workspace/*
+!agent_assistant/workspace/budget.txt
 
-# IDE / OS
+# ---------- Editors / OS ----------
 .vscode/
 .idea/
 .DS_Store
+Thumbs.db

@@ -12,3 +12,4 @@ pydantic>=2.0
 openai>=1.0
 google-genai>=1.0
 pytest>=7.0
+ddgs

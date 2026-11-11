@@ -1,0 +1,5 @@
+﻿Budget projet 2026
+Serveurs cloud : 4500 MAD par mois
+Licences logiciels : 12000 MAD par an
+Formation equipe : 8000 MAD (une fois)
+Nombre de mois : 12
