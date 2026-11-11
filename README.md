@@ -360,5 +360,6 @@ Task 2 tests the pure functions (source formatting, citation parsing, text extra
 **Bouzagrar Siham**
 - GitHub: [SihamBouzagrar](https://github.com/SihamBouzagrar)
 - LinkedIn: [Siham Bouzagrar](https://www.linkedin.com/in/siham-bouzagrar-262711251)
+-  Live demo : [https://datheonpython-generativeai-langchaininternshipgit-bf8iyezw7lqh.streamlit.app/]
 
 Built as part of the Datheon *Python + Generative AI & LangChain* internship.
