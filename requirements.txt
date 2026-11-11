@@ -1,0 +1,6 @@
+ddgs==9.16.1
+langchain-core==1.7.0
+langchain-google-genai==4.4.2
+pypdf==6.21.2
+python-dotenv==1.0.1
+streamlit==1.67.0
