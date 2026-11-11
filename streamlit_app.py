@@ -29,7 +29,12 @@ from agent_assistant.tools import TOOLS
 
 st.set_page_config(page_title="Multi-Tool AI Agent", page_icon="🤖")
 
-
+# Streamlit Cloud: copy the secret into the environment variable the agent reads
+try:
+    if "GEMINI_API_KEY" in st.secrets and not os.getenv("GEMINI_API_KEY"):
+        os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    pass  # no secrets file locally: the .env file is used instead
 # ---------- Configuration ----------
 
 MEMORY_NOTE = (
